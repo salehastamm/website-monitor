@@ -1,0 +1,18 @@
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+/monitor
+website-monitor
+
+# Test binary / coverage
+*.test
+*.out
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Local env
+.env
