@@ -2,6 +2,7 @@ package checker
 
 import (
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -29,4 +30,18 @@ func CheckWebsite(url string) Result {
 		Err:        nil,
 	}
 	return result
+}
+
+func CheckAll(urls []string) []Result {
+	results := make([]Result, len(urls))
+	var wg sync.WaitGroup
+	for i, u := range urls {
+		wg.Add(1)
+		go func(i int, u string) {
+			defer wg.Done()
+			results[i] = CheckWebsite(u)
+		}(i, u)
+	}
+	wg.Wait()
+	return results
 }
