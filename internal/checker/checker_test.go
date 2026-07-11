@@ -55,14 +55,32 @@ func TestCheckAll(t *testing.T) {
 	defer srv503.Close()
 
 	urls := []string{srv200.URL, srv404.URL, srv503.URL}
-	results := CheckAll(urls)
-	if len(results) != len(urls) {
-		t.Errorf("Expected the same size for results and urls, got different size")
+
+	// Receive results from the channel.
+	got := make(map[string]int)
+	count := 0
+
+	for r := range CheckAll(urls) {
+		count++
+		got[r.URL] = r.StatusCode
 	}
-	expected := []int{200, 404, 503}
-	for i, result := range results {
-		if result.StatusCode != expected[i] {
-			t.Errorf("Expected Status %d got Status %d", expected[i], result.StatusCode)
-		}
+
+	if count != len(urls) {
+		t.Fatalf("expected %d results, got %d", len(urls), count)
+	}
+
+	if got[srv200.URL] != http.StatusOK {
+		t.Errorf("expected %s to return %d, got %d",
+			srv200.URL, http.StatusOK, got[srv200.URL])
+	}
+
+	if got[srv404.URL] != http.StatusNotFound {
+		t.Errorf("expected %s to return %d, got %d",
+			srv404.URL, http.StatusNotFound, got[srv404.URL])
+	}
+
+	if got[srv503.URL] != http.StatusServiceUnavailable {
+		t.Errorf("expected %s to return %d, got %d",
+			srv503.URL, http.StatusServiceUnavailable, got[srv503.URL])
 	}
 }

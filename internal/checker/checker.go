@@ -32,16 +32,27 @@ func CheckWebsite(url string) Result {
 	return result
 }
 
-func CheckAll(urls []string) []Result {
-	results := make([]Result, len(urls))
+// We wanna return the channel so it should be recieve-only <-
+func CheckAll(urls []string) <-chan Result {
+	ch := make(chan Result)
+
 	var wg sync.WaitGroup
-	for i, u := range urls {
+
+	for _, u := range urls {
 		wg.Add(1)
-		go func(i int, u string) {
+
+		go func(url string) {
 			defer wg.Done()
-			results[i] = CheckWebsite(u)
-		}(i, u)
+			ch <- CheckWebsite(url)
+		}(u)
 	}
-	wg.Wait()
-	return results
+	// Because we return channel and the receiver is main
+	// we put wg.Wait() and close(ch) inside a goroutine so
+	// the CheckAll function could return ch any time its ready
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	return ch
 }

@@ -15,14 +15,17 @@ func main() {
 		"https://invalid.example",
 	}
 	start := time.Now()
-	results := checker.CheckAll(urls)
-	for i := 0; i < len(results); i++ {
-		if results[i].Err != nil {
-			fmt.Printf("%s failed : %s in %v \n", results[i].URL, results[i].Err, results[i].Duration)
+
+	for result := range checker.CheckAll(urls) {
+		if result.Err != nil {
+			fmt.Printf("%s failed: %v\n", result.URL, result.Err)
 		} else {
-			fmt.Printf("%s returned %d in %v\n", results[i].URL, results[i].StatusCode, results[i].Duration)
+			fmt.Printf("%s returned %d in %v\n",
+				result.URL,
+				result.StatusCode,
+				result.Duration)
 		}
 	}
-	finished := time.Since(start)
-	fmt.Printf("Monitoring Websites Concurrently %v\n", finished)
+
+	fmt.Println("Finished in", time.Since(start))
 }
