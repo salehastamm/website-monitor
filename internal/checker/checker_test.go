@@ -3,7 +3,9 @@ package checker
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestCheckWebsite(t *testing.T) {
@@ -82,5 +84,43 @@ func TestCheckAll(t *testing.T) {
 	if got[srv503.URL] != http.StatusServiceUnavailable {
 		t.Errorf("expected %s to return %d, got %d",
 			srv503.URL, http.StatusServiceUnavailable, got[srv503.URL])
+	}
+}
+
+func TestCheckAllBoundedConcurrency(t *testing.T) {
+	var active int32
+	var peak int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&active, 1)
+
+		for {
+			old := atomic.LoadInt32(&peak)
+			if n <= old {
+				break
+			}
+			if atomic.CompareAndSwapInt32(&peak, old, n) {
+				break
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+		atomic.AddInt32(&active, -1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	const numURLs = 20
+	urls := make([]string, numURLs)
+	for i := range urls {
+		urls[i] = srv.URL
+	}
+
+	//Drain every result, dont care about the values
+	for range CheckAll(urls) {
+	}
+
+	//Concurrency never exceeded pool size
+	if got := atomic.LoadInt32(&peak); got > maxWorkers {
+		t.Errorf("expected at most %d concurrent requests, but peak was %d", maxWorkers, got)
 	}
 }
