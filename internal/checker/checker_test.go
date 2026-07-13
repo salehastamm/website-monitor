@@ -92,12 +92,14 @@ func TestCheckAllBoundedConcurrency(t *testing.T) {
 	var peak int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&active, 1)
+		//How many are inside at this moment
+		n := atomic.AddInt32(&active, 1) // two goroutines touching shared variable is dangerous.
+		// we could used mutex instead we used atomic to ensure safe operation
 
 		for {
-			old := atomic.LoadInt32(&peak)
+			old := atomic.LoadInt32(&peak) //current peak
 			if n <= old {
-				break
+				break // peak already >= n
 			}
 			if atomic.CompareAndSwapInt32(&peak, old, n) {
 				break
