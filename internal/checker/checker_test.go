@@ -88,11 +88,13 @@ func TestCheckAll(t *testing.T) {
 }
 
 func TestCheckAllBoundedConcurrency(t *testing.T) {
+	//How many requests are inside the handler right now.
 	var active int32
+	//The highest value active ever reached.
 	var peak int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//How many are inside at this moment
+		// n is just the value of active at the instant
 		n := atomic.AddInt32(&active, 1) // two goroutines touching shared variable is dangerous.
 		// we could used mutex instead we used atomic to ensure safe operation
 
