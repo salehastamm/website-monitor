@@ -127,4 +127,8 @@ func TestCheckAllBoundedConcurrency(t *testing.T) {
 	if got := atomic.LoadInt32(&peak); got > maxWorkers {
 		t.Errorf("expected at most %d concurrent requests, but peak was %d", maxWorkers, got)
 	}
+	// floor: the pool actually ran in parallel, not sequentially
+	if got := atomic.LoadInt32(&peak); got < 2 {
+		t.Errorf("expected concurrent requests, but peak was only %d", got)
+	}
 }
