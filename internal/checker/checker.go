@@ -32,27 +32,38 @@ func CheckWebsite(url string) Result {
 	return result
 }
 
+const maxWorkers = 5
+
 // We wanna return the channel so it should be recieve-only <-
 func CheckAll(urls []string) <-chan Result {
-	ch := make(chan Result)
 
+	results := make(chan Result)
+	jobs := make(chan string)
 	var wg sync.WaitGroup
-
-	for _, u := range urls {
+	// 5 workers, 5 urls or 500 urls, only 5 CheckWebsite(u)
+	//could call at once <- bounded concurrency
+	for i := 0; i < maxWorkers; i++ {
 		wg.Add(1)
-
-		go func(url string) {
+		go func() {
 			defer wg.Done()
-			ch <- CheckWebsite(url)
-		}(u)
+			for u := range jobs {
+				results <- CheckWebsite(u)
+			}
+		}()
 	}
-	// Because we return channel and the receiver is main
-	// we put wg.Wait() and close(ch) inside a goroutine so
-	// the CheckAll function could return ch any time its ready
+	// Feeder, jobs is unbuffered so it blocks untill a worker
+	//is ready to take it. thats our backpressure.
+	//the feeder's pace depends on the worker's pace.
+	go func() {
+		for _, u := range urls {
+			jobs <- u
+		}
+		close(jobs) // whoever send is who closes
+	}()
+	// Closer
 	go func() {
 		wg.Wait()
-		close(ch)
+		close(results)
 	}()
-
-	return ch
+	return results
 }

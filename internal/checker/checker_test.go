@@ -3,7 +3,9 @@ package checker
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestCheckWebsite(t *testing.T) {
@@ -82,5 +84,51 @@ func TestCheckAll(t *testing.T) {
 	if got[srv503.URL] != http.StatusServiceUnavailable {
 		t.Errorf("expected %s to return %d, got %d",
 			srv503.URL, http.StatusServiceUnavailable, got[srv503.URL])
+	}
+}
+
+func TestCheckAllBoundedConcurrency(t *testing.T) {
+	//How many requests are inside the handler right now.
+	var active int32
+	//The highest value active ever reached.
+	var peak int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// n is just the value of active at the instant
+		n := atomic.AddInt32(&active, 1) // two goroutines touching shared variable is dangerous.
+		// we could used mutex instead we used atomic to ensure safe operation
+
+		for {
+			old := atomic.LoadInt32(&peak) //current peak
+			if n <= old {
+				break // peak already >= n
+			}
+			if atomic.CompareAndSwapInt32(&peak, old, n) {
+				break
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+		atomic.AddInt32(&active, -1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	const numURLs = 20
+	urls := make([]string, numURLs)
+	for i := range urls {
+		urls[i] = srv.URL
+	}
+
+	//Drain every result, dont care about the values
+	for range CheckAll(urls) {
+	}
+
+	//Concurrency never exceeded pool size
+	if got := atomic.LoadInt32(&peak); got > maxWorkers {
+		t.Errorf("expected at most %d concurrent requests, but peak was %d", maxWorkers, got)
+	}
+	// floor: the pool actually ran in parallel, not sequentially
+	if got := atomic.LoadInt32(&peak); got < 2 {
+		t.Errorf("expected concurrent requests, but peak was only %d", got)
 	}
 }
