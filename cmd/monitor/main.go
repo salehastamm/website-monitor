@@ -5,9 +5,11 @@ import (
 	"time"
 
 	"github.com/salehastamm/website-monitor/internal/checker"
+	"github.com/salehastamm/website-monitor/internal/monitor"
 )
 
 func main() {
+	mon := monitor.NewMonitor()
 	urls := []string{
 		"https://example.com",
 		"https://google.com",
@@ -17,13 +19,13 @@ func main() {
 	start := time.Now()
 
 	for result := range checker.CheckAll(urls) {
-		if result.Err != nil {
-			fmt.Printf("%s failed: %v\n", result.URL, result.Err)
+		mon.Update(result)
+	}
+	for url, status := range mon.Snapshot() {
+		if status.LastError != nil {
+			fmt.Printf("%s DOWN (%d consecutive failures)\n", url, status.ConsecutiveFailures)
 		} else {
-			fmt.Printf("%s returned %d in %v\n",
-				result.URL,
-				result.StatusCode,
-				result.Duration)
+			fmt.Printf("%s UP %d\n", url, status.LastStatusCode)
 		}
 	}
 
