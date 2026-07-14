@@ -17,36 +17,37 @@ type Status struct {
 
 type Monitor struct {
 	mu    sync.Mutex
-	State map[string]Status
+	state map[string]Status
 }
 
 func NewMonitor() *Monitor {
-	return &Monitor{State: make(map[string]Status)}
+	return &Monitor{state: make(map[string]Status)}
 }
 
 func (m *Monitor) Update(r checker.Result) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// read-modify-write-back pattern
-	s := m.State[r.URL]
-	s.LastChecked = time.Now()
+	now := time.Now()
+	s := m.state[r.URL]
+	s.LastChecked = now
 	s.LastStatusCode = r.StatusCode
 	if r.Err != nil {
 		s.ConsecutiveFailures++
 		s.LastError = r.Err
 	} else {
 		s.ConsecutiveFailures = 0
-		s.LastSuccess = time.Now()
+		s.LastSuccess = now
 		s.LastError = nil
 	}
-	m.State[r.URL] = s
+	m.state[r.URL] = s
 }
 
 func (m *Monitor) Snapshot() map[string]Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	out := make(map[string]Status, len(m.State))
-	for k, v := range m.State {
+	out := make(map[string]Status, len(m.state))
+	for k, v := range m.state {
 		out[k] = v
 	}
 	return out

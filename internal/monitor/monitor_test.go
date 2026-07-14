@@ -20,12 +20,17 @@ func TestUpdate(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for i := 0; i < 100; i++ {
+			for j := 0; j < 100; j++ {
 				m.Update(r)
 			}
 		}()
 	}
 	wg.Wait()
+	snap := m.Snapshot()
+	url := "https://example.com"
+	if snap[url].LastStatusCode != 200 || snap[url].ConsecutiveFailures != 0 {
+		t.Errorf("unexpected final state: %+v", snap[url])
+	}
 }
 
 func TestUpdateConsecutiveFailures(t *testing.T) {
