@@ -1,6 +1,8 @@
 package checker
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -14,7 +16,7 @@ func TestCheckWebsite(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	result := CheckWebsite(srv.URL)
+	result := CheckWebsite(context.Background(), srv.URL)
 
 	if result.Err != nil {
 		t.Errorf("expected no error, got %v", result.Err)
@@ -31,7 +33,7 @@ func TestCheckWebsiteFailure(t *testing.T) {
 	srv.Close()
 	// nothing is listening at deadURL anymore, so the GET must fail
 	// at the transport layar(connection refused)
-	result := CheckWebsite(deadURL)
+	result := CheckWebsite(context.Background(), deadURL)
 	if result.Err == nil {
 		t.Errorf("expected an error for a dead server, got nil")
 	}
@@ -62,7 +64,7 @@ func TestCheckAll(t *testing.T) {
 	got := make(map[string]int)
 	count := 0
 
-	for r := range CheckAll(urls) {
+	for r := range CheckAll(context.Background(), urls) {
 		count++
 		got[r.URL] = r.StatusCode
 	}
@@ -120,7 +122,7 @@ func TestCheckAllBoundedConcurrency(t *testing.T) {
 	}
 
 	//Drain every result, dont care about the values
-	for range CheckAll(urls) {
+	for range CheckAll(context.Background(), urls) {
 	}
 
 	//Concurrency never exceeded pool size
@@ -130,5 +132,62 @@ func TestCheckAllBoundedConcurrency(t *testing.T) {
 	// floor: the pool actually ran in parallel, not sequentially
 	if got := atomic.LoadInt32(&peak); got < 2 {
 		t.Errorf("expected concurrent requests, but peak was only %d", got)
+	}
+}
+
+// When the server is slow, does it actually give up?
+func TestCheckWebsiteTimeout(t *testing.T) {
+	// a fake website that pauses 500ms before answering
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(500 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// give up after 50ms
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	result := CheckWebsite(ctx, srv.URL) // Check the slow site with 50ms give up rule
+	elapsed := time.Since(start)
+
+	// check A: it should have FAILED
+	if !errors.Is(result.Err, context.DeadlineExceeded) {
+		t.Errorf("expected a timeout error, got %v", result.Err)
+	}
+
+	// check B : it shoud have given up after 50ms
+	if elapsed > 200*time.Millisecond {
+		t.Errorf("expected it to give up quickly, but it took %v", elapsed)
+	}
+}
+
+// When we say STOP!, does it actually stop?
+func TestCheckAllCancellation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(500 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// 20 copies of the slow URL, enough to keep all workers busy.
+	urls := make([]string, 20)
+	for i := range urls {
+		urls[i] = srv.URL
+	}
+
+	//a context we can cancel ourselves
+	ctx, cancel := context.WithCancel(context.Background())
+
+	results := CheckAll(ctx, urls)
+	cancel()
+
+	start := time.Now()
+	for range results { // drain untill the channel closes
+	}
+	elapsed := time.Since(start)
+	if elapsed > 1*time.Second {
+		t.Errorf("expected fast shutdown after cancel, took %v", elapsed)
 	}
 }
