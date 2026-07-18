@@ -17,12 +17,15 @@ type Result struct {
 func CheckWebsite(ctx context.Context, url string) Result {
 	var result Result
 	start := time.Now()
+	// create a child context
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	// build a GET request and attach context to it
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return Result{URL: url, StatusCode: 0, Duration: time.Since(start), Err: err}
 	}
+	// send the built request
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return Result{URL: url, StatusCode: 0, Duration: time.Since(start), Err: err}
@@ -53,7 +56,9 @@ func CheckAll(ctx context.Context, urls []string) <-chan Result {
 		go func() {
 			defer wg.Done()
 			for u := range jobs {
+				// each worker receives the same context from the main
 				r := CheckWebsite(ctx, u)
+				// A cancellation to avoid goroutine leaking
 				select {
 				case results <- r:
 				case <-ctx.Done():
@@ -68,6 +73,7 @@ func CheckAll(ctx context.Context, urls []string) <-chan Result {
 	go func() {
 		defer close(jobs)
 		for _, u := range urls {
+			//Also a cancellation to avoid goroutines leaking
 			select {
 			case jobs <- u:
 			case <-ctx.Done():

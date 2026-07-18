@@ -18,7 +18,9 @@ func main() {
 		"https://invalid.example",
 	}
 	start := time.Now()
+	// creates a root context
 	ctx := context.Background()
+	// passing the context and urls to CheckAll
 	for result := range checker.CheckAll(ctx, urls) {
 		mon.Update(result)
 	}

@@ -46,6 +46,7 @@ func (m *Monitor) Update(r checker.Result) {
 func (m *Monitor) Snapshot() map[string]Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	// make a copy of the main map and return it
 	out := make(map[string]Status, len(m.state))
 	for k, v := range m.state {
 		out[k] = v
