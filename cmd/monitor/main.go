@@ -18,7 +18,8 @@ func main() {
 		"https://invalid.example",
 	}
 	start := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	someSeconds := 30 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), someSeconds)
 	defer cancel()
 	// passing the context and urls to CheckAll
 	interval := 10 * time.Second
