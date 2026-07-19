@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/salehastamm/website-monitor/internal/checker"
 	"github.com/salehastamm/website-monitor/internal/monitor"
+	"github.com/salehastamm/website-monitor/internal/scheduler"
 )
 
 func main() {
@@ -18,12 +18,11 @@ func main() {
 		"https://invalid.example",
 	}
 	start := time.Now()
-	// creates a root context
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	// passing the context and urls to CheckAll
-	for result := range checker.CheckAll(ctx, urls) {
-		mon.Update(result)
-	}
+	interval := 10 * time.Second
+	scheduler.Run(ctx, mon, urls, interval)
 	for url, status := range mon.Snapshot() {
 		if status.LastError != nil {
 			fmt.Printf("%s DOWN (%d consecutive failures)\n", url, status.ConsecutiveFailures)
