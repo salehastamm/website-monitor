@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -17,8 +18,10 @@ func main() {
 		"https://invalid.example",
 	}
 	start := time.Now()
-
-	for result := range checker.CheckAll(urls) {
+	// creates a root context
+	ctx := context.Background()
+	// passing the context and urls to CheckAll
+	for result := range checker.CheckAll(ctx, urls) {
 		mon.Update(result)
 	}
 	for url, status := range mon.Snapshot() {

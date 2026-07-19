@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"time"
@@ -13,10 +14,19 @@ type Result struct {
 	Err        error
 }
 
-func CheckWebsite(url string) Result {
+func CheckWebsite(ctx context.Context, url string) Result {
 	var result Result
 	start := time.Now()
-	response, err := http.Get(url)
+	// create a child context
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	// build a GET request and attach context to it
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return Result{URL: url, StatusCode: 0, Duration: time.Since(start), Err: err}
+	}
+	// send the built request
+	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return Result{URL: url, StatusCode: 0, Duration: time.Since(start), Err: err}
 	}
@@ -35,8 +45,7 @@ func CheckWebsite(url string) Result {
 const maxWorkers = 5
 
 // We wanna return the channel so it should be recieve-only <-
-func CheckAll(urls []string) <-chan Result {
-
+func CheckAll(ctx context.Context, urls []string) <-chan Result {
 	results := make(chan Result)
 	jobs := make(chan string)
 	var wg sync.WaitGroup
@@ -47,7 +56,14 @@ func CheckAll(urls []string) <-chan Result {
 		go func() {
 			defer wg.Done()
 			for u := range jobs {
-				results <- CheckWebsite(u)
+				// each worker receives the same context from the main
+				r := CheckWebsite(ctx, u)
+				// A cancellation to avoid goroutine leaking
+				select {
+				case results <- r:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 	}
@@ -55,10 +71,15 @@ func CheckAll(urls []string) <-chan Result {
 	//is ready to take it. thats our backpressure.
 	//the feeder's pace depends on the worker's pace.
 	go func() {
+		defer close(jobs)
 		for _, u := range urls {
-			jobs <- u
+			//Also a cancellation to avoid goroutines leaking
+			select {
+			case jobs <- u:
+			case <-ctx.Done():
+				return
+			}
 		}
-		close(jobs) // whoever send is who closes
 	}()
 	// Closer
 	go func() {
