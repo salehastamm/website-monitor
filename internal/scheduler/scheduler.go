@@ -15,9 +15,7 @@ func Run(ctx context.Context, mon *monitor.Monitor, urls []string, interval time
 	for {
 		select {
 		case <-ticker.C:
-			for result := range checker.CheckAll(ctx, urls) {
-				mon.Update(result)
-			}
+			runOnce(ctx, mon, urls)
 		case <-ctx.Done():
 			return
 		}
