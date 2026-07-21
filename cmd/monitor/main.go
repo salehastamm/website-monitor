@@ -18,10 +18,9 @@ func main() {
 		"https://invalid.example",
 	}
 	start := time.Now()
-	someSeconds := 30 * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), someSeconds)
+	serviceTimeout := 30 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), serviceTimeout)
 	defer cancel()
-	// passing the context and urls to CheckAll
 	interval := 10 * time.Second
 	scheduler.Run(ctx, mon, urls, interval)
 	for url, status := range mon.Snapshot() {

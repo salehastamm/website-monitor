@@ -11,10 +11,7 @@ import (
 func Run(ctx context.Context, mon *monitor.Monitor, urls []string, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	// Immediate first check
-	for result := range checker.CheckAll(ctx, urls) {
-		mon.Update(result)
-	}
+	runOnce(ctx, mon, urls) //Immediate first Check
 	for {
 		select {
 		case <-ticker.C:
@@ -24,5 +21,11 @@ func Run(ctx context.Context, mon *monitor.Monitor, urls []string, interval time
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+func runOnce(ctx context.Context, mon *monitor.Monitor, urls []string) {
+	for result := range checker.CheckAll(ctx, urls) {
+		mon.Update(result)
 	}
 }
