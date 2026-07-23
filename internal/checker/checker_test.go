@@ -191,3 +191,71 @@ func TestCheckAllCancellation(t *testing.T) {
 		t.Errorf("expected fast shutdown after cancel, took %v", elapsed)
 	}
 }
+
+func TestCheckWithRetrySucceedsAfterFailures(t *testing.T) {
+	var attempts int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&attempts, 1)
+		if n < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable) //503 on tries 1 and 2 so we can retry on it
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	result := CheckWithRetry(context.Background(), srv.URL, 5) //allows up to 5 tries
+
+	if result.Err != nil {
+		t.Errorf("expected success, got error: %v", result.Err)
+	}
+	if result.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", result.StatusCode)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 3 {
+		t.Errorf("expected exactly 3 attempts, got %d", got)
+	}
+}
+
+func TestCheckWithRetryGivesUp(t *testing.T) {
+	var attempts int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	result := CheckWithRetry(context.Background(), srv.URL, 3)
+
+	if result.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("expected the final failing result (503), got %d", result.StatusCode)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 3 {
+		t.Errorf("expected exactly 3 attempts, got %d", got)
+	}
+}
+
+// this ensures that if a cancel arrives mid-backoff, it returns fast,
+// not after sleeping out the full backoff
+func TestCheckWithRetryCancelBeatsBackoff(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// cancel shortly after starting while its mid-backoff
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	CheckWithRetry(ctx, srv.URL, 10)
+	elapsed := time.Since(start)
+
+	if elapsed > 1*time.Second {
+		t.Errorf("expected cancel to cut the backoff short, but it took %v", elapsed)
+	}
+}

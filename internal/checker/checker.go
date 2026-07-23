@@ -43,22 +43,19 @@ func CheckWebsite(ctx context.Context, url string) Result {
 }
 
 const maxWorkers = 5
+const maxAttempts = 3
 
 // We wanna return the channel so it should be recieve-only <-
 func CheckAll(ctx context.Context, urls []string) <-chan Result {
 	results := make(chan Result)
 	jobs := make(chan string)
 	var wg sync.WaitGroup
-	// 5 workers, 5 urls or 500 urls, only 5 CheckWebsite(u)
-	//could call at once <- bounded concurrency
 	for i := 0; i < maxWorkers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for u := range jobs {
-				// each worker receives the same context from the main
-				r := CheckWebsite(ctx, u)
-				// A cancellation to avoid goroutine leaking
+				r := CheckWithRetry(ctx, u, maxAttempts)
 				select {
 				case results <- r:
 				case <-ctx.Done():
@@ -87,4 +84,32 @@ func CheckAll(ctx context.Context, urls []string) <-chan Result {
 		close(results)
 	}()
 	return results
+}
+
+func isRetryable(r Result) bool {
+	if r.Err != nil || r.StatusCode >= 500 {
+		return true
+	}
+	return false
+}
+
+func CheckWithRetry(ctx context.Context, url string, maxAttempts int) Result {
+	var result Result
+	backoff := 100 * time.Millisecond
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		result = CheckWebsite(ctx, url)
+		if !isRetryable(result) {
+			return result
+		}
+		if attempt == maxAttempts {
+			break
+		}
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return result
+		}
+		backoff *= 2
+	}
+	return result
 }
