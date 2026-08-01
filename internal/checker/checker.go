@@ -2,6 +2,7 @@ package checker
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -87,10 +88,10 @@ func CheckAll(ctx context.Context, urls []string) <-chan Result {
 }
 
 func isRetryable(r Result) bool {
-	if r.Err != nil || r.StatusCode >= 500 {
-		return true
+	if errors.Is(r.Err, context.Canceled) {
+		return false
 	}
-	return false
+	return r.Err != nil || r.StatusCode >= 500
 }
 
 func CheckWithRetry(ctx context.Context, url string, maxAttempts int) Result {
