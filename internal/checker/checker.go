@@ -2,7 +2,10 @@ package checker
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -13,6 +16,7 @@ type Result struct {
 	StatusCode int
 	Duration   time.Duration
 	Err        error
+	BodyHash   string
 }
 
 func CheckWebsite(ctx context.Context, url string) Result {
@@ -31,14 +35,19 @@ func CheckWebsite(ctx context.Context, url string) Result {
 	if err != nil {
 		return Result{URL: url, StatusCode: 0, Duration: time.Since(start), Err: err}
 	}
-	// the defer should be after the error checking because
-	//if the response was nil the code wont panic.
 	defer response.Body.Close()
+	hasher := sha256.New()
+	_, err = io.Copy(hasher, response.Body)
+	if err != nil {
+		return Result{URL: url, StatusCode: response.StatusCode, Duration: time.Since(start), Err: err}
+	}
+	hash := hex.EncodeToString(hasher.Sum(nil))
 	result = Result{
 		URL:        url,
 		StatusCode: response.StatusCode,
 		Duration:   time.Since(start),
 		Err:        nil,
+		BodyHash:   hash,
 	}
 	return result
 }
