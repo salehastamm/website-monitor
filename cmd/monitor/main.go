@@ -30,7 +30,7 @@ func main() {
 			fmt.Printf("%s UP %d\n", url, status.LastStatusCode)
 		}
 		if !status.LastChanged.IsZero() {
-			fmt.Printf("Changed at %v\n", status.LastChanged)
+			fmt.Printf("Changed at %v\n", status.LastChanged.Format(time.TimeOnly))
 		}
 	}
 
