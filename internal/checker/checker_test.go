@@ -3,6 +3,7 @@ package checker
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -257,5 +258,51 @@ func TestCheckWithRetryCancelBeatsBackoff(t *testing.T) {
 
 	if elapsed > 1*time.Second {
 		t.Errorf("expected cancel to cut the backoff short, but it took %v", elapsed)
+	}
+}
+
+func TestCheckWebsiteSameBodyProducesSameHash(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "Hello")
+	}))
+	defer srv.Close()
+
+	ctx := context.Background()
+
+	r1 := CheckWebsite(ctx, srv.URL)
+	r2 := CheckWebsite(ctx, srv.URL)
+
+	if r1.Err != nil {
+		t.Errorf("expected no error, got %v", r1.Err)
+	}
+	if r1.BodyHash == "" {
+		t.Errorf("expected a hash, got nothing")
+	}
+	if r1.BodyHash != r2.BodyHash {
+		t.Errorf("Expected the same BodyHash, got different")
+	}
+}
+
+func TestCheckWebsiteDifferentBodyProducesDifferentHash(t *testing.T) {
+	var count int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&count, 1)
+
+		if n == 1 {
+			io.WriteString(w, "Hello")
+			return
+		}
+
+		io.WriteString(w, "World")
+	}))
+	defer srv.Close()
+
+	ctx := context.Background()
+
+	r1 := CheckWebsite(ctx, srv.URL)
+	r2 := CheckWebsite(ctx, srv.URL)
+
+	if r1.BodyHash == r2.BodyHash {
+		t.Errorf("Expected different BodyHash, got the same")
 	}
 }

@@ -13,6 +13,9 @@ type Status struct {
 	LastChecked         time.Time
 	ConsecutiveFailures int
 	LastSuccess         time.Time
+	LastHash            string
+	LastChanged         time.Time
+	Changed             bool
 }
 
 type Monitor struct {
@@ -30,6 +33,14 @@ func (m *Monitor) Update(r checker.Result) {
 	// read-modify-write-back pattern
 	now := time.Now()
 	s := m.state[r.URL]
+	s.Changed = false
+	if r.BodyHash != "" {
+		if s.LastHash != "" && r.BodyHash != s.LastHash {
+			s.Changed = true
+			s.LastChanged = now
+		}
+		s.LastHash = r.BodyHash
+	}
 	s.LastChecked = now
 	s.LastStatusCode = r.StatusCode
 	if r.Err != nil {

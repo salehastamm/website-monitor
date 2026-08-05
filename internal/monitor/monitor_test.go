@@ -57,3 +57,50 @@ func TestUpdateConsecutiveFailures(t *testing.T) {
 		t.Errorf("Expected Successful but got %v", snap[url].LastSuccess)
 	}
 }
+
+func TestUpdateSameHashIsNotAChange(t *testing.T) {
+	m := NewMonitor()
+	url := "https://example.com"
+
+	m.Update(checker.Result{
+		URL:        url,
+		StatusCode: 200,
+		BodyHash:   "aaa",
+	})
+	m.Update(checker.Result{
+		URL:        url,
+		StatusCode: 200,
+		BodyHash:   "aaa",
+	})
+	snap := m.Snapshot()
+	if snap[url].Changed {
+		t.Errorf("second check should not be a change, got Changed=true")
+	}
+	if !snap[url].LastChanged.IsZero() {
+		t.Errorf("LastChanged should be zero, got %v", snap[url].LastChanged)
+	}
+}
+
+func TestUpdateDetectHashChange(t *testing.T) {
+	m := NewMonitor()
+	url := "https://example.com"
+
+	m.Update(checker.Result{
+		URL:        url,
+		StatusCode: 200,
+		BodyHash:   "aaa",
+	})
+	m.Update(checker.Result{
+		URL:        url,
+		StatusCode: 200,
+		BodyHash:   "bbb",
+	})
+	snap := m.Snapshot()
+
+	if !snap[url].Changed {
+		t.Errorf("expected a change but got changed=false")
+	}
+	if snap[url].LastChanged.IsZero() {
+		t.Errorf("expected LastChanged to be set, but it is zero")
+	}
+}
