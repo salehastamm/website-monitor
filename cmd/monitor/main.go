@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/salehastamm/website-monitor/internal/ledger"
@@ -46,7 +47,8 @@ func main() {
 	if chain.Validate() {
 		fmt.Println("✅ SUCCESS: Ledger chain is mathematically valid and untampered.")
 	} else {
-		fmt.Println("❌ CRITICAL ERROR: Ledger chain validation failed!")
+		fmt.Fprintln(os.Stderr, "❌ CRITICAL ERROR: Ledger chain validation failed!")
+		os.Exit(1)
 	}
 
 	fmt.Println("Finished in", time.Since(start))

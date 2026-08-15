@@ -43,8 +43,11 @@ func runOnce(ctx context.Context, mon *monitor.Monitor, chain *ledger.Chain, url
 	leaves := merkle.BuildLeaves(roundHashes)
 	root := merkle.Root(leaves)
 
-	block := chain.Append(root, time.Now())
-
 	fmt.Printf("[Scheduler] Round observed %d sites. Merkle root: %x\n", len(roundHashes), root)
-	fmt.Printf("[Ledger] Chain Length: %d | Tip Hash: %x\n", block.Index+1, block.Hash)
+
+	// chain is optional; callers that don't need a ledger pass nil
+	if chain != nil {
+		block := chain.Append(root, time.Now())
+		fmt.Printf("[Ledger] Chain Length: %d | Tip Hash: %x\n", block.Index+1, block.Hash)
+	}
 }

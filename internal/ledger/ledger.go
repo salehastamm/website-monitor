@@ -64,13 +64,21 @@ func (c *Chain) Append(root []byte, ts time.Time) Block {
 	block := Block{
 		Index:      index,
 		Timestamp:  ts,
-		MerkleRoot: root,
-		PrevHash:   prevHash,
-		Hash:       hash,
+		MerkleRoot: bytes.Clone(root),
+		PrevHash:   bytes.Clone(prevHash),
+		Hash:       bytes.Clone(hash),
 	}
 
 	c.blocks = append(c.blocks, block)
-	return block
+
+	return Block{
+		Index:      block.Index,
+		Timestamp:  block.Timestamp,
+		MerkleRoot: bytes.Clone(block.MerkleRoot),
+		PrevHash:   bytes.Clone(block.PrevHash),
+		Hash:       bytes.Clone(block.Hash),
+	}
+
 }
 
 func (c *Chain) Validate() bool {
@@ -111,5 +119,8 @@ func (c *Chain) TipHash() ([]byte, int) {
 	if len(c.blocks) == 0 {
 		return nil, 0
 	}
-	return c.blocks[len(c.blocks)-1].Hash, len(c.blocks)
+
+	tipHashCopy := bytes.Clone(c.blocks[len(c.blocks)-1].Hash)
+
+	return tipHashCopy, len(c.blocks)
 }
