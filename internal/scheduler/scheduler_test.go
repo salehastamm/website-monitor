@@ -8,10 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/salehastamm/website-monitor/internal/ledger"
 	"github.com/salehastamm/website-monitor/internal/monitor"
 )
 
 func TestRun(t *testing.T) {
+	chain := ledger.NewChain()
 	var hits int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&hits, 1)
@@ -21,7 +23,7 @@ func TestRun(t *testing.T) {
 	mon := monitor.NewMonitor()
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	Run(ctx, mon, []string{srv.URL}, 20*time.Millisecond)
+	Run(ctx, mon, chain, []string{srv.URL}, 20*time.Millisecond)
 
 	if got := atomic.LoadInt32(&hits); got < 2 {
 		t.Errorf("expected multiple rounds (>1 hit), got %d", got)
@@ -29,6 +31,7 @@ func TestRun(t *testing.T) {
 }
 
 func TestRunStopsOnCancel(t *testing.T) {
+	chain := ledger.NewChain()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -40,7 +43,7 @@ func TestRunStopsOnCancel(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		Run(ctx, mon, []string{srv.URL}, 10*time.Millisecond)
+		Run(ctx, mon, chain, []string{srv.URL}, 10*time.Millisecond)
 		close(done)
 	}()
 
