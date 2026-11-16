@@ -16,3 +16,5 @@ go.work.sum
 
 # Local env
 .env
+ledger.jsonl
+monitor_state.json

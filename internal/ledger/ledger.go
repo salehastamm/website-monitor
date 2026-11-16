@@ -43,6 +43,23 @@ func NewChain() *Chain {
 	}
 }
 
+// NewChainFromBlocks restores a Chain from a previously persisted slice of
+// blocks (e.g. loaded by store.LoadChain). The caller should call Validate()
+// immediately after to confirm the chain has not been tampered with.
+func NewChainFromBlocks(blocks []Block) *Chain {
+	c := &Chain{blocks: make([]Block, len(blocks))}
+	for i, b := range blocks {
+		c.blocks[i] = Block{
+			Index:      b.Index,
+			Timestamp:  b.Timestamp,
+			MerkleRoot: bytes.Clone(b.MerkleRoot),
+			PrevHash:   bytes.Clone(b.PrevHash),
+			Hash:       bytes.Clone(b.Hash),
+		}
+	}
+	return c
+}
+
 func (c *Chain) Append(root []byte, ts time.Time) Block {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -123,4 +140,22 @@ func (c *Chain) TipHash() ([]byte, int) {
 	tipHashCopy := bytes.Clone(c.blocks[len(c.blocks)-1].Hash)
 
 	return tipHashCopy, len(c.blocks)
+}
+
+// Snapshot returns a copy of all blocks in the chain, safe to read without
+// holding the lock. It is used by the store layer to persist the chain.
+func (c *Chain) Snapshot() []Block {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]Block, len(c.blocks))
+	for i, b := range c.blocks {
+		out[i] = Block{
+			Index:      b.Index,
+			Timestamp:  b.Timestamp,
+			MerkleRoot: bytes.Clone(b.MerkleRoot),
+			PrevHash:   bytes.Clone(b.PrevHash),
+			Hash:       bytes.Clone(b.Hash),
+		}
+	}
+	return out
 }

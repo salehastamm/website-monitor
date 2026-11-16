@@ -23,7 +23,7 @@ func TestRun(t *testing.T) {
 	mon := monitor.NewMonitor()
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	Run(ctx, mon, chain, []string{srv.URL}, 20*time.Millisecond)
+	Run(ctx, mon, chain, []string{srv.URL}, 20*time.Millisecond, Paths{})
 
 	if got := atomic.LoadInt32(&hits); got < 2 {
 		t.Errorf("expected multiple rounds (>1 hit), got %d", got)
@@ -43,7 +43,7 @@ func TestRunStopsOnCancel(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		Run(ctx, mon, chain, []string{srv.URL}, 10*time.Millisecond)
+		Run(ctx, mon, chain, []string{srv.URL}, 10*time.Millisecond, Paths{})
 		close(done)
 	}()
 

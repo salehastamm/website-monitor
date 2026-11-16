@@ -27,6 +27,18 @@ func NewMonitor() *Monitor {
 	return &Monitor{state: make(map[string]Status)}
 }
 
+// Seed replaces the internal state with the provided snapshot. It is intended
+// for restoring persisted state at startup and must be called before any
+// concurrent updates begin.
+func (m *Monitor) Seed(state map[string]Status) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.state = make(map[string]Status, len(state))
+	for k, v := range state {
+		m.state[k] = v
+	}
+}
+
 func (m *Monitor) Update(r checker.Result) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
